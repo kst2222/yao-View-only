@@ -1,6 +1,63 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+  // 管理者専用パスワード
+  var ADMIN_PASS = "KST-MASTER-OFFICE";
+
+  // デバイスIDから専用キーを生成する裏の計算式
+  function generateKey(id) {
+    var hash = 0;
+    var str = id + "_UD_YAO_SECRET_2026"; // 秘密の文字列を混ぜて解読不能にする
+    for (var i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0; 
+    }
+    return Math.abs(hash).toString(36).toUpperCase(); // 短い英数字のキーになる
+  }
+
+  // 1. このスマホのデバイスIDを取得（無ければランダムな英数字5文字で作成）
+  var deviceId = localStorage.getItem("viewer_device_id");
+  if (!deviceId) {
+    deviceId = Math.random().toString(36).substring(2, 7).toUpperCase();
+    localStorage.setItem("viewer_device_id", deviceId);
+  }
+
+  // 2. 認証済みかチェック
+  var isAuth = localStorage.getItem("viewer_auth_status");
+
+  if (isAuth !== "ok") {
+    // 認証されていない場合、プロンプトを出す
+    var input = prompt("【閲覧専用ヤードマップ】\nあなたのデバイスID: [" + deviceId + "]\n\n管理者にこのIDを伝えて、発行された「認証キー」を入力してください。\n（管理者は管理者パスワードを入力）");
+
+    if (input === ADMIN_PASS) {
+      // ▼ 管理者がKST-MASTER-OFFICEと入力した場合（キー発行モード）
+      var targetId = prompt("【🔑 キー発行モード】\n作業員の「デバイスID」を入力してください:");
+      if (targetId) {
+        var newKey = generateKey(targetId.toUpperCase());
+        alert("デバイスID [" + targetId.toUpperCase() + "] の専用認証キーは\n\n【 " + newKey + " 】\n\nです。これを作業員に伝えてください。");
+      }
+      // 管理者自身もそのまま閲覧できるようにする
+      localStorage.setItem("viewer_auth_status", "ok");
+      alert("管理者としてログインしました。マップを表示します。");
+
+    } else if (input === generateKey(deviceId)) {
+      // ▼ 作業員が正しい専用キーを入力した場合
+      localStorage.setItem("viewer_auth_status", "ok");
+      
+    } else {
+      // ▼ キーが違う、またはキャンセルした場合
+      document.write("<h3 style='text-align:center; margin-top:50px; font-family:sans-serif;'>認証キーが違います。<br>ページを再読み込みしてやり直してください。</h3>");
+      window.stop();
+    }
+  }
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UD八尾 場内配置【閲覧専用】</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UD八尾 場内配置【閲覧専用】</title>
