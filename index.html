@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UD八尾 場内配置【閲覧専用】</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #eef2f5; user-select: none; color: #333; }
+  .app { padding: 12px; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; background: #1e293b; padding: 10px 15px; color: #fff; border-radius: 6px; }
+  h1 { font-size: 18px; margin: 0; }
+  .search-box { display: flex; gap: 6px; }
+  input, button { padding: 7px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+  button { cursor: pointer; font-weight: bold; transition: all 0.2s; }
+  button:hover { opacity: 0.9; }
+  
+  .info-bar { background: #10b981; color: #fff; padding: 8px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; font-size: 13px; text-align: center; }
+
+  /* ヤードマップ */
+  .map-wrap { width: 100%; height: 75vh; overflow: auto; background: #fff; border: 3px solid #0f172a; position: relative; border-radius: 6px; }
+  .map {
+     position: relative; width: 1800px; height: 1100px;
+     background: linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+    background-size: 25px 25px; background-repeat: repeat; transition: transform 0.15s ease-out;
+  }
+  
+  /* 場内図オブジェクトデザイン */
+  .item { position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-weight: bold; z-index: 2; transition: transform 0.1s ease-out; }
+  .item.building { background: #cbd5e1; border: 2px solid #94a3b8; border-radius: 6px; color: #334155; font-size: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+  .item.road { background: #475569; border: 2px dashed #94a3b8; opacity: 0.15; border-radius: 6px; color: #fff; font-size: 15px; text-align: center; }
+  .item.line { background: #1e293b; height: 6px !important; border: 0; }
+
+  /* 駐車マス */
+  .item.slot { display: block; background: #ffffff; border: 2px solid #222222; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: normal; z-index: 5; }
+  .slot-label { font-size: 11px; background: #e4e4e7; color: #27272a; height: 16px; line-height: 16px; border-radius: 4px 4px 0 0; font-weight: bold; overflow: hidden; border-bottom: 1px solid #b4b4b8; text-align: center; }
+  
+  /* 車両カード */
+  .car { height: calc(100% - 17px); font-size: 11px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.2; overflow: hidden; border-radius: 0 0 4px 4px; color: #1e293b; text-align: center; }
+  .car-date { font-size: 9px; opacity: 0.8; margin-top: 1px; }
+  .empty { color: #555555; font-size: 12px; padding-top: 14px; font-weight: bold; text-align: center; }
+
+  /* 作業別カラー */
+  .status-wash { background: #00d9ff; color: #000; }
+  .status-transfer { background: #ffe44d; color: #000; }
+  .status-inspection { background: #f5a623; color: #fff; }
+  .status-scale { background: #8ae639; color: #000; }
+  .status-delivery { background: #b58cff; color: #fff; }
+  .status-front { background: #ff4757; color: #fff; }
+  .status-other { background: #f4f4f5; color: #4b5563; }
+
+  .item.highlight { outline: 4px solid #10b981; z-index: 40; }
+
+  @media (pointer: coarse) {
+    .map-wrap { overflow: hidden !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>UD八尾 場内配置【閲覧専用】</h1>
+    <div class="search-box">
+      <input id="search" placeholder="検索（車体番号・ユーザー）">
+      <button onclick="clearSearch()" style="background: #e2e8f0; border: none;">クリア</button>
+    </div>
+  </header>
+
+  <div style="margin-bottom: 6px; display: flex; gap: 8px; align-items: center; background: #fff; padding: 6px 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-wrap: wrap;">
+    <span style="font-size: 12px; font-weight: bold; color: #475569;">🔎 マップ拡大縮小:</span>
+    <button onclick="window.changeZoom(0.1)" style="padding: 3px 12px; font-size: 11px; background: #0284c7; color: white; border: none;">➕ 拡大</button>
+    <button onclick="window.changeZoom(-0.1)" style="padding: 3px 12px; font-size: 11px; background: #0284c7; color: white; border: none;">➖ 縮小</button>
+    <button onclick="window.changeZoom(0)" style="padding: 3px 12px; font-size: 11px; background: #64748b; color: white; border: none;">等倍 (100%)</button>
+    <span id="zoomTxt" style="font-size: 12px; font-weight: bold; color: #0284c7; margin-left: 4px; margin-right: 15px;">100%</span>
+        
+    <span style="font-size: 12px; font-weight: bold; color: #475569; border-left: 2px solid #cbd5e1; padding-left: 10px;">📱 スマホ操作:</span>
+    <button id="touchModeMoveBtn" onclick="window.setTouchMode('move')" style="padding: 3px 12px; font-size: 11px; background: #0284c7; color: white; border: none; font-weight: bold; border-radius: 4px;">✋ 移動</button>
+    <button id="touchModeZoomBtn" onclick="window.setTouchMode('zoom')" style="padding: 3px 12px; font-size: 11px; background: #64748b; color: white; border: none; font-weight: bold; border-radius: 4px;">🔍 ズーム</button>
+  </div>
+
+  <div class="info-bar" id="infoBar">🟢 この画面は閲覧専用です。管理者が更新すると自動的に最新の状態が反映されます。スマホは2本指でマップ移動。</div>
+
+  <div class="map-wrap">
+    <div class="map" id="map"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // 管理用と同じGASのURLを指定（ここからデータを受信するだけ）
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbzZ-wc9IXWeoX1hCWkz2PUn2z2FyXfOwB_7lIQ5hOBIQ0DFtC0qdpFKTA8ptv5FfA_U/exec";   
+
+  var zoomLevel = 1.0;
+  var items = [];
+  var cars = [];
+
+  function getStatusColorClass(status) {
+    if (status === "洗車") return "status-wash";
+    if (status === "回送") return "status-transfer";
+    if (status === "車検") return "status-inspection";
+    if (status === "計量") return "status-scale";
+    if (status === "納車") return "status-delivery";
+    if (status === "前にしておきたい車") return "status-front";
+    return "status-other";
+  }
+
+  function render() {
+    var mapEl = document.getElementById("map");
+    if(!mapEl) return;
+        
+    var legacyItems = mapEl.querySelectorAll(".item");
+    legacyItems.forEach(function(el) { el.remove(); });
+
+    items.forEach(function(item) {
+      var el = document.createElement("div");
+      el.className = "item " + item.type;
+      
+      if (item.type === "slot") el.setAttribute("data-place", item.name);
+      
+      el.style.left = item.x + "px";
+      el.style.top = item.y + "px";
+      el.style.width = item.w + "px";
+      el.style.height = item.h + "px";
+      el.style.transform = item.rotate ? "rotate(" + item.rotate + "deg)" : "none";
+      el.style.writingMode = item.writing === "vertical" ? "vertical-rl" : "horizontal-tb";
+      
+      if (item.type === "slot") {
+        var car = cars.find(function(c){ return c.place === item.name; });
+        var dateStr = "";
+        if (car && car.date && car.date.trim() !== "") {
+          var d = new Date(car.date);
+          if (!isNaN(d.getTime())) dateStr = "(" + (d.getMonth()+1) + "/" + d.getDate() + ")";
+        }
+        
+        el.innerHTML = "<div class='slot-label'>" + item.name + "</div>" +
+          (car
+             ? "<div class='car " + getStatusColorClass(car.status) + "'>" +
+                "<span style='font-size:9px; opacity:0.8;'>[" + car.type + "] " + car.user + "</span>" +
+                "<span style='font-size:11px; letter-spacing:0.3px;'>" + car.bodyNo + "</span>" +
+                "<span class='car-date'>" + car.status + dateStr + "</span>" +
+               "</div>"
+             : "<div class='empty'>空</div>");
+      } else {
+        el.innerHTML = item.name || "";
+      }
+      
+      // クリック操作などは一切付与しない（閲覧専用）
+      mapEl.appendChild(el);
+    });
+    applyZoom();
+  }
+
+  // クラウドから最新データを受信
+  function syncFromCloud() {  
+    if (!GAS_URL || GAS_URL.trim() === "") return;
+    var urlWithTimestamp = GAS_URL + (GAS_URL.indexOf('?') === -1 ? '?' : '&') + '_ts=' + Date.now();
+    
+    fetch(urlWithTimestamp, { cache: "no-store" })
+      .then(function(res){ return res.json(); })
+      .then(function(data) {  
+        if (data.cars) cars = data.cars;
+        if (data.items) items = data.items;
+        render();
+      }).catch(function(err){ console.error("同期失敗:", err); });
+  }
+
+  function applyZoom() {
+    var map = document.getElementById("map");
+    if (!map) return;
+    var maxX = 1800; var maxY = 1100;
+    if (items && items.length > 0) {
+      items.forEach(function(item) {
+        if (item.x + item.w > maxX) maxX = item.x + item.w;
+        if (item.y + item.h > maxY) maxY = item.y + item.h;
+      });
+    }
+    maxX += 60; maxY += 60;
+    map.style.width = maxX + "px"; map.style.height = maxY + "px";
+    map.style.transform = "scale(" + zoomLevel + ")";
+    map.style.transformOrigin = "0 0";
+    map.style.marginRight = ((maxX * zoomLevel) - maxX) + "px";
+    map.style.marginBottom = ((maxY * zoomLevel) - maxY) + "px";
+        
+    var txt = document.getElementById("zoomTxt");
+    if (txt) txt.textContent = Math.round(zoomLevel * 100) + "%";
+  }
+
+  window.changeZoom = function(amt) {
+    if (amt === 0) zoomLevel = 1.0;
+    else zoomLevel = Math.max(0.2, Math.min(2.0, zoomLevel + amt));
+    applyZoom();
+  };
+
+  window.setTouchMode = function(mode) {
+    window.touchMode = mode;
+    var moveBtn = document.getElementById("touchModeMoveBtn");
+    var zoomBtn = document.getElementById("touchModeZoomBtn");
+    var infoBar = document.getElementById("infoBar");
+    if (!moveBtn || !zoomBtn) return;
+    if (mode === 'move') {
+      moveBtn.style.background = "#0284c7"; zoomBtn.style.background = "#64748b";
+      infoBar.textContent = "🟢 この画面は閲覧専用です。管理者が更新すると自動的に最新の状態が反映されます。スマホは2本指でマップ移動。";
+    } else {
+      moveBtn.style.background = "#64748b"; zoomBtn.style.background = "#0284c7";
+      infoBar.textContent = "【🔍 ズーム中】スマホは2本指の開閉（ピンチ操作）でマップを拡大縮小できます。";
+    }
+  };
+
+  function startApp() {
+    var mapWrapEl = document.querySelector(".map-wrap");
+    var isTwoFingers = false;
+    var startTouchDistance = 0; var startZoom = 1.0; var startTouchX = 0; var startTouchY = 0;
+    var startScrollLeft = 0; var startScrollTop = 0;
+    
+    mapWrapEl.addEventListener("touchstart", function(e) {
+      if (e.touches.length === 2) {
+        isTwoFingers = true;
+        var t1 = e.touches[0]; var t2 = e.touches[1];
+        startTouchDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        startZoom = zoomLevel;
+        startTouchX = (t1.clientX + t2.clientX) / 2; startTouchY = (t1.clientY + t2.clientY) / 2;
+        startScrollLeft = mapWrapEl.scrollLeft; startScrollTop = mapWrapEl.scrollTop;
+        e.preventDefault();
+      } else { isTwoFingers = false; }
+    }, { passive: false });
+    
+    mapWrapEl.addEventListener("touchmove", function(e) {
+      if (isTwoFingers && e.touches.length === 2) {
+        e.preventDefault();
+        var t1 = e.touches[0]; var t2 = e.touches[1];
+        if (window.touchMode === 'zoom') {
+          var dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          if (startTouchDistance > 0) {
+            var factor = dist / startTouchDistance;
+            zoomLevel = Math.max(0.2, Math.min(2.0, startZoom * factor));
+            applyZoom();
+          }
+        } else {
+          var centerX = (t1.clientX + t2.clientX) / 2; var centerY = (t1.clientY + t2.clientY) / 2;
+          mapWrapEl.scrollLeft = startScrollLeft - (centerX - startTouchX);
+          mapWrapEl.scrollTop = startScrollTop - (centerY - startTouchY);
+        }
+      }
+    }, { passive: false });
+    
+    mapWrapEl.addEventListener("touchend", function(e) {
+      if (e.touches.length < 2) isTwoFingers = false;
+    });
+
+    // 🌟初回読み込みと、3秒ごとの自動更新
+    syncFromCloud(); 
+    setInterval(syncFromCloud, 3000);
+
+    var sInput = document.getElementById("search");
+    if (sInput) {
+      sInput.addEventListener("input", function(e) {
+        var q = e.target.value.trim().toLowerCase();
+        document.querySelectorAll(".slot").forEach(function(s){ s.classList.remove("highlight"); });
+        if (!q) return;
+        var hit = cars.find(function(c){ return c.user.toLowerCase().includes(q) || c.bodyNo.toLowerCase().includes(q); });
+        if (hit) {
+          var slot = document.querySelector("[data-place='" + hit.place + "']");
+          if (slot) { slot.classList.add("highlight"); slot.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" }); }
+        }
+      });
+    }
+  }
+
+  window.clearSearch = function() {
+    document.getElementById("search").value = ""; 
+    document.querySelectorAll(".slot").forEach(function(s){ s.classList.remove("highlight"); });
+  };
+
+  var checkExist = setInterval(function() {
+     if (document.getElementById("map")) { startApp(); clearInterval(checkExist); }
+  }, 50);
+})();
+</script>
+</body>
+</html>
